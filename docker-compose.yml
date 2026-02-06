@@ -1,0 +1,72 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: minhasenha
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pminhasenha"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  order:
+    build:
+      context: ./order
+      dockerfile: Dockerfile
+    container_name: order-service
+    ports:
+      - "3000:3000"
+    environment:
+      ENV: development
+      APPLICATION_PORT: "3000"
+      DATA_SOURCE_URL: "root:minhasenha@tcp(mysql:3306)/order?charset=utf8mb4&parseTime=True&loc=Local"
+      PAYMENT_SERVICE_URL: "payment:3001"
+      SHIPPING_SERVICE_URL: "shipping:3002"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      payment:
+        condition: service_started
+      shipping:
+        condition: service_started
+
+  payment:
+    build:
+      context: ./payment
+      dockerfile: Dockerfile
+    container_name: payment-service
+    ports:
+      - "3001:3001"
+    environment:
+      ENV: development
+      APPLICATION_PORT: "3001"
+      DATA_SOURCE_URL: "root:minhasenha@tcp(mysql:3306)/payment?charset=utf8mb4&parseTime=True&loc=Local"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  shipping:
+    build:
+      context: ./shipping
+      dockerfile: Dockerfile
+    container_name: shipping-service
+    ports:
+      - "3002:3002"
+    environment:
+      ENV: development
+      APPLICATION_PORT: "3002"
+      DATA_SOURCE_URL: "root:minhasenha@tcp(mysql:3306)/shipping?charset=utf8mb4&parseTime=True&loc=Local"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
